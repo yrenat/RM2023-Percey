@@ -41,9 +41,9 @@ void blink(void *pvPara)
 
 struct PID
 {
-    float Kp;
-    float Ki;
-    float Kd;
+    float Kp = 20.0;
+    float Ki = 12.0;
+    float Kd = 0.1;  //参数
 
     float pout;
     float iout;
@@ -57,8 +57,9 @@ struct PID
     float dt = 0.001f;
 };
 
-static volatile float targetPos = 0;
-
+// static volatile float targetPos = 0;
+static volatile float targetRPM = 300;
+float watch_num;  //新加的
 StackType_t uxPIDTaskStack[128];
 StaticTask_t xPIDTaskTCB;
 void PIDTask(void *pvPara)
@@ -70,8 +71,8 @@ void PIDTask(void *pvPara)
     while (true)
     {
         pid.lastError = pid.error;
-        pid.error = targetPos - motor.getPosition();
-
+        // pid.error = targetPos - motor.getPosition();
+        pid.error = targetRPM - motor.getRPM();
         pid.pout = pid.Kp * pid.error;
 
         pid.integral += pid.Ki * pid.error * pid.dt;
@@ -83,7 +84,8 @@ void PIDTask(void *pvPara)
 
         motor.setOutputCurrent(pid.out);
         DJIMotor::sendMotorGroup(1);
-        vTaskDelay((uint32_t)(pid.dt * 1000) == 0? 1: (uint32_t)(pid.dt * 1000));
+        vTaskDelay((uint32_t)(pid.dt * 1000) == 0 ? 1 : (uint32_t)(pid.dt * 1000));
+        watch_num = motor.getRPM();
     }
 }
 
@@ -99,9 +101,11 @@ void TargetUpdateTask(void *pvPara)
         while (DR16::getRcData().rc.ch3 - 1024 > -200 && DR16::getRcData().rc.ch3 - 1024 < 200)
             vTaskDelay(1);
         if (DR16::getRcData().rc.ch3 - 1024 > 0)
-            targetPos += step;
+            // targetPos += step;
+            targetRPM += step;
         else
-            targetPos -= step;
+            // targetPos -= step;
+            targetRPM += step;
         vTaskDelay(1);
     }
 }
@@ -117,4 +121,3 @@ void startUserTasks()
     xTaskCreateStatic(PIDTask, "PID", 128, NULL, 10, uxPIDTaskStack, &xPIDTaskTCB);
     xTaskCreateStatic(TargetUpdateTask, "TargetUpdate", 128, NULL, 10, uxTargetUpdateTaskStack, &xTargetUpdateTaskTCB);
 }
-
